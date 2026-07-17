@@ -280,7 +280,6 @@
       padding:.2rem .5rem; border-radius:999px; transition:opacity 300ms ease, color 140ms ease; }
     .med-chev:disabled{ color:var(--track); cursor:default; }
     .med-chev.gone{ opacity:0; pointer-events:none; }
-    .med-hint{ font-size:.82rem; color:var(--sub); margin-top:-.35rem; }
     .step-timer-btns{ display:flex; align-items:center; gap:.6rem; }
     .step-go{ min-width:9rem; font-size:1rem; padding:.8rem 2rem; }
     .step-go.stop{ animation:mob-pulse 1s ease-in-out infinite; }
@@ -337,7 +336,7 @@
     .done-back{ color:rgba(255,255,255,.92); }
     /* per-step time breakdown — a translucent "liquid glass" card over the day's scene */
     .done-summary{ position:fixed; z-index:3; left:.9rem; right:.9rem; margin:0 auto; max-width:25rem;
-      top:calc(2rem + env(safe-area-inset-top)); bottom:calc(7rem + env(safe-area-inset-bottom));
+      top:calc(2rem + env(safe-area-inset-top)); bottom:calc(9rem + env(safe-area-inset-bottom));
       padding:1.3rem 1.4rem .3rem; display:flex; flex-direction:column; border-radius:1.7rem;
       background:rgba(255,255,255,.12); -webkit-backdrop-filter:blur(18px) saturate(1.4); backdrop-filter:blur(18px) saturate(1.4);
       border:1px solid rgba(255,255,255,.22); box-shadow:0 10px 34px rgba(16,34,29,.14); animation:mr-fadein 800ms ease both; }
@@ -560,7 +559,6 @@
                 disabled={!idle || (!isCustom && sel === presets.length - 1)} aria-label="longer">›</button>
             )}
           </div>
-          {custom && idle && <div className="med-hint">{isCustom ? "custom · tap the time to change it" : "tap the time to set a custom length"}</div>}
           <div className="step-timer-btns">
             <button className={"mr-btn step-go" + (alarming ? " stop" : "")} onClick={primary}>{label}</button>
             {!alarming && (running || remaining < seconds) && <button className="mob-reset" onClick={reset} aria-label="Reset timer">↺</button>}
@@ -884,8 +882,7 @@
             <main className={"mr-main" + (isPanel ? " panel" : "")}>
               {isPsycho && <PsychoReview key={mode + pos} />}
               {isMobility && <MobilityChecklist key={mode + pos} sections={MOBILITY} title="Mobility training" />}
-              {isWalk && <MobilityChecklist key={mode + pos} sections={ROLLOUT_CIRCUIT} title="Walk and joint rollout"
-                footer={<StepTimer presets={[5]} />} />}
+              {isWalk && <MobilityChecklist key={mode + pos} sections={ROLLOUT_CIRCUIT} title="Walk and joint rollout" />}
               {isStep && !isPanel && (
                 <div className="mr-stepwrap" key={mode + pos}>
                   <p className="mr-step">{stepText}</p>
