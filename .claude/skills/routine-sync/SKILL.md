@@ -17,20 +17,25 @@ user changes those notes, run this skill to reconcile the app content to match.
 ## Source-of-truth map (Evernote section → app constant)
 
 ### Note: "Psychohabitual optimization" — GUID `69829404-4ba0-4f2f-a945-f32c1f07eff9`
-- **"After waking"** list → `MORNING_STEPS` (+ `MORNING_INTRO`).
-  - NUANCE: the note's **first** "After waking" bullet ("Do not rush, think slowly and
-    deliberately, and do things one at a time") is **NOT a step** — it is `MORNING_INTRO`,
-    rendered as text above the button on the opening page.
+- **"After waking"** list → `MORNING_STEPS`.
+  - NUANCE: the opening-page headline is a fixed **`INTRO_HEADLINE = "Clear your mind"`** (same
+    for morning AND night) — NOT taken from the note. The note's old first bullet ("Do not rush,
+    think slowly and deliberately, and do things one at a time") is no longer surfaced anywhere.
+  - NUANCE — **step order is app-specific**: "Open blinds to let in natural light" is forced to
+    **step 1**, and `PSYCHO_STEP` (the adjustments panel) is **step 2**. Preserve this regardless
+    of the note's ordering.
   - NUANCE: the note bullet **"Do not aimlessly scroll media in bed" is intentionally
     OMITTED** from the app (still present in the note; do not add it back).
+  - NUANCE: **"Meditate"** step label is shortened (note may say "Meditate for 5m" / similar);
+    the app shows just **"Meditate"** and offers a duration picker (see "Not from a note").
   - NUANCE: **"Do isometric pull-up hold (left biceps — underhand grip, ≈30–45s, a few
     rounds)"** exists in BOTH the note and the app (it was added to the note, after "Do neck training").
   - Otherwise keep step text **verbatim** from the note.
 - **"Night"** list → `NIGHT_STEPS` (verbatim; the note's "Shower(<= every 3 days)/rinse
   (<= every 2 days)" is normalized to "Shower (≤ every 3 days) / rinse (≤ every 2 days)").
 - **"Psychohabitual adjustments to keep in mind"** section (the top h1) → `PSYCHO`
-  (nested `{t, c}` array, nesting preserved **verbatim**). Rendered as the SECOND step
-  (first screen after Begin), sentinel step label `PSYCHO_STEP`.
+  (nested `{t, c}` array, nesting preserved **verbatim**). Rendered as **step 2** (after
+  "Open blinds"), sentinel step label `PSYCHO_STEP`.
 
 ### Note: "Project Bend, Extend, and Mend" — GUID `3075cb0e-6a21-4c3e-8173-25c1baa1f105`
 - **"Mobility circuit"** → `MOBILITY` (shown on the "Do mobility training" step, reused
@@ -55,9 +60,18 @@ user changes those notes, run this skill to reconcile the app content to match.
 - **To-do** step → `todoist://today`.
 - Link format: `evernote:///view/${EN_UID}/${EN_SHARD}/${guid}/${guid}/`.
 
-### Not from a note
-- **Meditate** and **Walk, joint rollout** steps get a **5-minute** `StepTimer`
-  (`STEP_TIMER_SECONDS = 300`), detected via `hasStepTimer()` (matches "meditate" / "joint rollout").
+### Not from a note (app-specific behavior — keep when syncing)
+- **Opening button** `MANTRA` is per-mode: morning `"Keep calm, analyze, and optimize"`,
+  night `"Relax"`. It morphs into the "Done" button on the first step.
+- **Timers** via `hasStepTimer()` (matches "meditate" / "joint rollout"):
+  - **Meditate** → `<StepTimer presets={[1,5,10]} custom />` — chevrons cycle 1/5/10 min plus a
+    **custom** slot (+/- sets the custom minutes); chevrons fade out once running.
+  - **Walk, joint rollout** → `<StepTimer presets={[5]} />` (plain 5-minute timer, no picker).
+- **Daily reset:** progress is keyed by `routineDay()` and rolls over at **1 PM**
+  (`RESET_HOUR = 13`) — each morning starts fresh; a same-day reopen resumes.
+- **Stopwatch + breakdown:** `times` state accumulates active seconds per step; the running total
+  shows top-right on each step (the theme toggle only appears on the intro). The done screen
+  overlays a scrollable **per-step time breakdown** on the day's scene.
 - **Neck training:** the "Do neck training" step has **no checklist yet** — no Evernote
   source was found. If the user provides neck exercises, add a checklist like `MobilityChecklist`
   (note per-side / timed as they specify) and record the source note here.
