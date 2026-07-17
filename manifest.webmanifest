@@ -1,7 +1,7 @@
 {
-  "name": "Morning Routine",
-  "short_name": "Morning",
-  "description": "A calm, one-step-at-a-time walk through the morning routine.",
+  "name": "Routine",
+  "short_name": "Routine",
+  "description": "A calm, one-step-at-a-time walk through your morning and night routines.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
