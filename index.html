@@ -21,7 +21,6 @@
     html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
     #root { height: 100%; }
     * { -webkit-tap-highlight-color: transparent; }
-    /* avoid a white flash before React mounts / behind the status bar */
     body { background: #E9E2E6; }
     @media (prefers-color-scheme: dark) { body { background: #10151F; } }
   </style>
@@ -43,13 +42,13 @@
     crossorigin="anonymous"></script>
 
   <script type="text/babel" data-presets="react">
-    const { useState, useEffect, useCallback } = React;
+    const { useState, useEffect, useCallback, useRef } = React;
 
-    // ── Morning ("After waking") — verbatim from the Psychohabitual optimization
-    //    note in Evernote (isometric hold sits after neck training).
+    // ── Morning ("After waking") — from the Psychohabitual optimization note.
+    //    First step is shown on the opening page (not a step); "aimlessly scroll"
+    //    line is intentionally omitted from the app (still in the note).
+    const MORNING_INTRO = "Do not rush, think slowly and deliberately, and do things one at a time";
     const MORNING_STEPS = [
-      "Do not rush, think slowly and deliberately, and do things one at a time",
-      "Do not aimlessly scroll media in bed",
       "Open blinds to let in natural light",
       "Meditate for 5m",
       "Briefly clean room",
@@ -81,6 +80,7 @@
     ];
 
     const STEPS_BY_MODE = { morning: MORNING_STEPS, night: NIGHT_STEPS };
+    const INTRO_LINE = { morning: MORNING_INTRO, night: null };
     const MODE_META = {
       morning: { label: "Morning", theme: "light",
         doneSub: "You're ready for the day — check off your morning routine in Todoist." },
@@ -88,19 +88,49 @@
         doneSub: "You're set for the night — check off your night routine in Todoist." },
     };
 
-    // ── Mobility circuit — verbatim from "Project Bend, Extend, and Mend".
-    //    Timers only on the stretches; hold options are 35s / 95s.
+    // ── Mobility circuit — from "Project Bend, Extend, and Mend".
+    //    Stretches carry timers; one-leg stretches get separate L/R checkboxes.
     const MOBILITY = [
-      { section: "Rollouts", timed: false, items: ["Shoulders", "Neck", "Upper torso", "Hips", "Knees", "Ankles"] },
-      { section: "Dynamic movements", timed: false, items: ["Jumps", "Lunges", "High knees", "Leg swings", "90-90 rotations", "Hip CARs"] },
-      { section: "Stretches", timed: true, items: ["Elephant walk", "Half kneeling stretch back and forth", "Split stretch", "Couch stretch", "Glute stretch / pigeon stretch", "Put foot on wall and then take off", "Butterfly stretch"] },
+      { section: "Rollouts", timed: false,
+        items: ["Shoulders", "Neck", "Upper torso", "Hips", "Knees", "Ankles"] },
+      { section: "Dynamic movements", timed: false,
+        items: ["Jumps", "Lunges", "High knees", "Leg swings", "90-90 rotations", "Hip CARs"] },
+      { section: "Stretches", timed: true, items: [
+        { name: "Elephant walk", sides: false },
+        { name: "Half kneeling stretch back and forth", sides: true },
+        { name: "Split stretch", sides: true },
+        { name: "Couch stretch", sides: true },
+        { name: "Glute stretch / pigeon stretch", sides: true },
+        { name: "Put foot on wall and then take off", sides: true },
+        { name: "Butterfly stretch", sides: false },
+      ] },
     ];
-    const MOBILITY_TOTAL = MOBILITY.reduce((n, s) => n + s.items.length, 0);
+    const itemName = (it) => (typeof it === "object" ? it.name : it);
+    const itemSides = (it) => (typeof it === "object" ? !!it.sides : false);
+    const MOBILITY_TOTAL = MOBILITY.reduce(
+      (n, s) => n + s.items.reduce((m, it) => m + (itemSides(it) ? 2 : 1), 0), 0
+    );
     const HOLDS = [35, 95];
 
     const MANTRA = "Keep calm, analyze, and optimize";
     const MODE_KEY = "routine-mode";
     const progKey = (m) => `routine-progress-${m}`;
+
+    // Deep links — open the native apps on iPhone / desktop.
+    const EN_UID = "27366594", EN_SHARD = "s222";
+    const enLink = (guid) => `evernote:///view/${EN_UID}/${EN_SHARD}/${guid}/${guid}/`;
+    const DEEPLINKS = {
+      selforg: enLink("5ab1aac9-1483-0510-804b-9d36b34d5b28"),    // Y32 Q1 self-organization
+      priorities: enLink("96537671-bc0b-ab2d-fb94-c1246eff009b"), // Priorities
+      todoist: "todoist://today",
+    };
+    function stepLink(text) {
+      const t = text.toLowerCase();
+      if (t.includes("self-organization")) return { href: DEEPLINKS.selforg, label: "Open in Evernote ↗" };
+      if (t.includes("priorities")) return { href: DEEPLINKS.priorities, label: "Open in Evernote ↗" };
+      if (t.includes("to-do")) return { href: DEEPLINKS.todoist, label: "Open Todoist ↗" };
+      return null;
+    }
 
     function todayStr() {
       const d = new Date();
@@ -108,19 +138,14 @@
         d.getDate()
       ).padStart(2, "0")}`;
     }
-
     function fmt(sec) {
       return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
     }
-
-    // linear interpolate between two hex colors → rgb() string
     function lerpHex(a, b, t) {
       const p = (h, i) => parseInt(h.replace("#", "").slice(i, i + 2), 16);
       const mix = (i) => Math.round(p(a, i) + (p(b, i) - p(a, i)) * t);
       return `rgb(${mix(0)}, ${mix(2)}, ${mix(4)})`;
     }
-
-    // dawn (cool, pre-light) → warm daylight, per theme
     const GRADIENTS = {
       light: { COOL_TOP: "#D9E2EC", COOL_BOT: "#E9E2E6", WARM_TOP: "#F4ECDC", WARM_BOT: "#F8E4D2" },
       dark:  { COOL_TOP: "#10151F", COOL_BOT: "#141019", WARM_TOP: "#1E1710", WARM_BOT: "#23160F" },
@@ -139,8 +164,7 @@
       color:var(--txt);
       font-family:'Inter',system-ui,-apple-system,sans-serif;
       transition:background 1200ms ease;
-      -webkit-font-smoothing:antialiased;
-      overflow:hidden;
+      -webkit-font-smoothing:antialiased; overflow:hidden;
     }
     .mr-root[data-theme="dark"]{
       --txt:#E8EDF1; --sub:#9AA7B2; --accent:#55988A; --accentH:#66A99B;
@@ -149,10 +173,8 @@
       --shadow:rgba(0,0,0,.35);
     }
     .mr-frame{
-      position:relative;
-      width:100%; max-width:33rem; height:100%;
+      position:relative; width:100%; max-width:33rem; height:100%;
       display:flex; flex-direction:column;
-      /* base padding + iOS/Android safe-area insets (notch, home indicator) */
       padding:
         calc(2rem + env(safe-area-inset-top))
         calc(1.6rem + env(safe-area-inset-right))
@@ -161,113 +183,155 @@
       box-sizing:border-box;
     }
     .mr-theme{
-      position:absolute;
-      top:calc(1rem + env(safe-area-inset-top));
-      right:calc(1.1rem + env(safe-area-inset-right));
-      z-index:5;
-      appearance:none; border:none; background:none; cursor:pointer;
+      position:absolute; top:calc(1rem + env(safe-area-inset-top)); right:calc(1.1rem + env(safe-area-inset-right));
+      z-index:5; appearance:none; border:none; background:none; cursor:pointer;
       font-size:1.15rem; line-height:1; padding:.4rem; border-radius:999px;
       color:var(--sub); transition:color 160ms ease, transform 200ms ease;
     }
     .mr-theme:hover{ color:var(--txt); transform:rotate(12deg); }
     .mr-top{ min-height:3.2rem; flex:0 0 auto; }
-    .mr-eyebrow{
-      font-size:.78rem; letter-spacing:.13em; text-transform:uppercase;
-      color:var(--sub); margin-bottom:.85rem;
-    }
+    .mr-eyebrow{ font-size:.78rem; letter-spacing:.13em; text-transform:uppercase; color:var(--sub); margin-bottom:.85rem; }
     .mr-track{ height:2px; width:100%; border-radius:2px; background:var(--track); overflow:hidden; }
-    .mr-fill{ height:100%; background:var(--accent); border-radius:2px;
-      transition:width 600ms cubic-bezier(.22,1,.36,1); }
+    .mr-fill{ height:100%; background:var(--accent); border-radius:2px; transition:width 600ms cubic-bezier(.22,1,.36,1); }
     .mr-main{
-      flex:1 1 auto; min-height:0;
-      display:flex; flex-direction:column;
-      justify-content:center; align-items:center; text-align:center;
-      padding:1.2rem 0;
+      flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+      justify-content:center; align-items:center; text-align:center; padding:1.2rem 0;
+      position:relative; overflow:hidden;
     }
     .mr-main.mob{ justify-content:flex-start; align-items:stretch; text-align:left; padding:.6rem 0 .4rem; }
     .mr-step{
-      font-family:'Fraunces',Georgia,serif;
-      font-weight:390; font-size:clamp(1.7rem,6.2vw,2.55rem);
+      font-family:'Fraunces',Georgia,serif; font-weight:390; font-size:clamp(1.7rem,6.2vw,2.55rem);
       line-height:1.28; letter-spacing:-.01em; margin:0; max-width:22ch;
       animation:mr-rise 620ms cubic-bezier(.22,1,.36,1) both;
     }
     .mr-lead{
-      font-family:'Fraunces',Georgia,serif;
-      font-weight:400; font-size:clamp(1.9rem,7vw,2.7rem);
-      line-height:1.15; margin:0 0 .7rem; letter-spacing:-.015em;
-      animation:mr-rise 620ms cubic-bezier(.22,1,.36,1) both;
+      font-family:'Fraunces',Georgia,serif; font-weight:400; font-size:clamp(1.9rem,7vw,2.7rem);
+      line-height:1.15; margin:0 0 .7rem; letter-spacing:-.015em; animation:mr-rise 620ms cubic-bezier(.22,1,.36,1) both;
     }
-    .mr-sub{ font-size:1.02rem; line-height:1.5; color:var(--sub); margin:0; max-width:30ch;
-      animation:mr-rise 700ms cubic-bezier(.22,1,.36,1) both; }
+    .mr-sub{ font-size:1.02rem; line-height:1.5; color:var(--sub); margin:0; max-width:30ch; animation:mr-rise 700ms cubic-bezier(.22,1,.36,1) both; }
+
+    /* opening page: first-step text above a button that drops into place */
+    .mr-intro{ display:flex; flex-direction:column; align-items:center; gap:1.5rem; }
+    .mr-intro-line{
+      font-family:'Fraunces',Georgia,serif; font-weight:400; font-size:clamp(1.3rem,5vw,1.95rem);
+      line-height:1.3; margin:0; max-width:20ch; color:var(--txt);
+      animation:mr-rise 650ms cubic-bezier(.22,1,.36,1) 340ms both;
+    }
     .mr-bottom{ flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:.85rem; min-height:1rem; }
     .mr-btn{
-      appearance:none; border:none; cursor:pointer;
-      background:var(--accent); color:var(--btnTxt);
-      font-family:inherit; font-weight:500; font-size:1.05rem;
-      padding:.95rem 3.4rem; border-radius:999px; min-width:12rem;
-      box-shadow:0 6px 18px var(--shadow);
-      transition:background 180ms ease, transform 120ms ease, box-shadow 180ms ease;
+      appearance:none; border:none; cursor:pointer; background:var(--accent); color:var(--btnTxt);
+      font-family:inherit; font-weight:500; font-size:1.05rem; padding:.95rem 3.4rem; border-radius:999px; min-width:12rem;
+      box-shadow:0 6px 18px var(--shadow); transition:background 180ms ease, transform 120ms ease, box-shadow 180ms ease;
     }
     .mr-btn:hover{ background:var(--accentH); }
     .mr-btn:active{ transform:translateY(1px); }
     .mr-mantra{
-      font-family:'Fraunces',Georgia,serif; font-weight:400;
-      font-size:clamp(1.15rem,4.7vw,1.42rem); line-height:1.35;
-      white-space:normal; max-width:19rem; padding:1.15rem 2.2rem; border-radius:1.7rem;
-      animation:mr-rise 700ms cubic-bezier(.22,1,.36,1) both;
+      font-family:'Fraunces',Georgia,serif; font-weight:400; font-size:clamp(1.15rem,4.7vw,1.42rem);
+      line-height:1.35; white-space:normal; max-width:19rem; padding:1.15rem 2.2rem; border-radius:1.7rem;
+      animation:mantra-drop 820ms cubic-bezier(.22,1,.36,1) both;
     }
     .mr-ghost{
-      appearance:none; border:none; background:none; cursor:pointer;
-      font-family:inherit; font-size:.92rem; color:var(--ghost);
-      padding:.35rem .7rem; border-radius:8px; transition:color 160ms ease;
+      appearance:none; border:none; background:none; cursor:pointer; font-family:inherit; font-size:.92rem;
+      color:var(--ghost); padding:.35rem .7rem; border-radius:8px; transition:color 160ms ease;
     }
     .mr-ghost:hover{ color:var(--txt); }
-    .mr-btn:focus-visible, .mr-ghost:focus-visible, .mr-theme:focus-visible{
-      outline:2px solid var(--accent); outline-offset:3px;
-    }
+    .mr-btn:focus-visible, .mr-ghost:focus-visible, .mr-theme:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; }
 
     /* ── Mobility checklist ── */
-    .mob-wrap{ display:flex; flex-direction:column; min-height:0; flex:1 1 auto; width:100%;
-      animation:mr-rise 620ms cubic-bezier(.22,1,.36,1) both; }
-    .mob-head{ font-family:'Fraunces',Georgia,serif; font-weight:400;
-      font-size:clamp(1.35rem,5vw,1.8rem); letter-spacing:-.01em; margin:0; color:var(--txt); }
-    .mob-controls{ display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin:.35rem 0 .1rem; }
+    .mob-wrap{ display:flex; flex-direction:column; min-height:0; flex:1 1 auto; width:100%; }
+    .mob-head{
+      font-family:'Fraunces',Georgia,serif; font-weight:400; font-size:clamp(1.35rem,5vw,1.8rem);
+      letter-spacing:-.01em; margin:0; color:var(--txt); text-align:center;
+      animation:mob-title-fly 1150ms cubic-bezier(.5,0,.15,1) both;
+    }
+    .mob-body{ display:flex; flex-direction:column; min-height:0; flex:1 1 auto; animation:mob-fade 480ms ease 820ms both; }
+    .mob-controls{ display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin:.4rem 0 .1rem; }
     .mob-prog{ font-size:.8rem; color:var(--sub); font-variant-numeric:tabular-nums; }
-    .mob-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
-      margin-top:.2rem; padding-right:.3rem;
+    .mob-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; margin-top:.2rem; padding-right:.3rem;
       -webkit-mask-image:linear-gradient(180deg,transparent,#000 .7rem,#000 calc(100% - .7rem),transparent);
               mask-image:linear-gradient(180deg,transparent,#000 .7rem,#000 calc(100% - .7rem),transparent); }
-    .mob-section{ font-family:'Fraunces',Georgia,serif; font-size:.95rem; font-weight:500;
-      color:var(--sub); margin:.85rem 0 .1rem; letter-spacing:.01em; }
-    .mob-row{ display:flex; align-items:center; gap:.6rem; padding:.5rem 0; border-bottom:1px solid var(--rowBorder); }
-    .mob-check{ flex:0 0 auto; width:1.35rem; height:1.35rem; border-radius:7px;
-      border:1.5px solid var(--rowBorder); background:none; cursor:pointer;
-      display:flex; align-items:center; justify-content:center; color:var(--btnTxt);
+    .mob-section{ font-family:'Fraunces',Georgia,serif; font-size:.95rem; font-weight:500; color:var(--sub); margin:.85rem 0 .1rem; letter-spacing:.01em; }
+    .mob-item{ padding:.5rem 0; border-bottom:1px solid var(--rowBorder); }
+    .mob-line{ display:flex; align-items:center; gap:.6rem; }
+    .mob-sides{ display:flex; gap:.35rem; flex:0 0 auto; }
+    .mob-check{ flex:0 0 auto; width:1.5rem; height:1.5rem; border-radius:7px; border:1.5px solid var(--rowBorder);
+      background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--btnTxt);
       font-size:.85rem; transition:background 140ms ease, border-color 140ms ease; }
     .mob-check.on{ background:var(--accent); border-color:var(--accent); }
+    .mob-check.sq{ font-size:.72rem; font-weight:600; color:var(--sub); }
+    .mob-check.sq.on{ color:var(--btnTxt); }
     .mob-label{ flex:1 1 auto; font-size:.98rem; color:var(--txt); text-align:left; line-height:1.3;
       background:none; border:none; padding:0; font-family:inherit; cursor:pointer; }
     .mob-label.on{ color:var(--sub); text-decoration:line-through; }
-    .mob-durs{ flex:0 0 auto; display:flex; align-items:center; gap:.3rem; }
-    .mob-chip{ appearance:none; border:none; cursor:pointer; font:inherit;
-      font-size:.8rem; font-variant-numeric:tabular-nums; padding:.34rem .55rem; border-radius:999px;
-      background:var(--chipBg); color:var(--chipTxt); min-width:3.3rem; text-align:center;
+    .mob-timer{ display:flex; align-items:center; gap:.35rem; margin:.5rem 0 .05rem 2.1rem; flex-wrap:wrap; }
+    .mob-chip{ appearance:none; border:none; cursor:pointer; font:inherit; font-size:.8rem; font-variant-numeric:tabular-nums;
+      padding:.34rem .6rem; border-radius:999px; background:var(--chipBg); color:var(--chipTxt); min-width:3.4rem; text-align:center;
       transition:background 140ms ease, color 140ms ease; }
     .mob-chip.run{ background:var(--accent); color:var(--btnTxt); }
-    .mob-reset{ appearance:none; border:none; background:none; cursor:pointer; color:var(--sub);
-      font-size:1.05rem; line-height:1; padding:.2rem .3rem; border-radius:6px; transition:color 140ms ease; }
+    .mob-reset{ appearance:none; border:none; background:none; cursor:pointer; color:var(--sub); font-size:1.05rem; line-height:1; padding:.2rem .35rem; border-radius:6px; transition:color 140ms ease; }
     .mob-reset:hover{ color:var(--txt); }
+    .mob-stop{ appearance:none; border:none; cursor:pointer; font:inherit; font-size:.78rem; font-weight:500; padding:.34rem .8rem;
+      border-radius:999px; background:var(--accent); color:var(--btnTxt); animation:mob-pulse 1s ease-in-out infinite; }
+
+    /* review-step deeplink button */
+    .mr-stepwrap{ display:flex; flex-direction:column; align-items:center; }
+    .mr-link{
+      display:inline-block; margin-top:1.4rem; font-size:.94rem; color:var(--accent);
+      border:1.5px solid var(--accent); padding:.55rem 1.15rem; border-radius:999px; text-decoration:none;
+      transition:background 160ms ease, color 160ms ease;
+      animation:mr-rise 700ms cubic-bezier(.22,1,.36,1) 140ms both;
+    }
+    .mr-link:hover{ background:var(--accent); color:var(--btnTxt); }
+
+    /* ── Done-screen outdoors scene ── */
+    .mr-donetext{ position:relative; z-index:1; }
+    .mr-donebtns{ display:flex; gap:1.3rem; }
+    .scene{ position:absolute; inset:0; overflow:hidden; z-index:0; pointer-events:none; }
+    .scene .sun{
+      position:absolute; top:15%; left:50%; width:5.5rem; height:5.5rem; margin-left:-2.75rem; border-radius:50%;
+      background:radial-gradient(circle at 50% 42%, #FFEBBC, #F3B25F);
+      box-shadow:0 0 3.5rem rgba(243,178,95,.55); animation:sun-bob 6s ease-in-out infinite;
+    }
+    .scene .moon{
+      position:absolute; top:14%; left:52%; width:4.6rem; height:4.6rem; margin-left:-2.3rem; border-radius:50%;
+      background:radial-gradient(circle at 38% 38%, #EEF3F8, #AAB6C4);
+      box-shadow:0 0 3rem rgba(180,200,220,.4); animation:sun-bob 7s ease-in-out infinite;
+    }
+    .scene .cloud{
+      position:absolute; height:1.3rem; width:4rem; background:rgba(255,255,255,.9); border-radius:999px;
+      box-shadow:1.1rem .2rem 0 -.2rem rgba(255,255,255,.9), -1rem .28rem 0 -.35rem rgba(255,255,255,.9);
+    }
+    .scene .c1{ top:26%; animation:drift 26s linear infinite; }
+    .scene .c2{ top:40%; transform:scale(.8); opacity:.85; animation:drift 36s linear infinite; animation-delay:-9s; }
+    .scene .c3{ top:16%; transform:scale(.62); opacity:.7; animation:drift 46s linear infinite; animation-delay:-22s; }
+    .scene .star{ position:absolute; width:3px; height:3px; border-radius:50%; background:#EEF3F8; animation:twinkle 3s ease-in-out infinite; }
+    .scene .hill{ position:absolute; border-radius:50%; }
+    .scene .h1{ width:82%; height:82%; left:-18%; bottom:-58%; background:var(--accent); opacity:.9; }
+    .scene .h2{ width:78%; height:78%; right:-14%; bottom:-60%; background:var(--accentH); opacity:.85; }
+    @keyframes sun-bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-9px);} }
+    @keyframes drift{ from{left:-32%;} to{left:122%;} }
+    @keyframes twinkle{ 0%,100%{opacity:.2;} 50%{opacity:.95;} }
 
     @keyframes mr-rise{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+    @keyframes mantra-drop{ from{opacity:0; transform:translateY(-14vh);} to{opacity:1; transform:none;} }
+    @keyframes mob-fade{ from{opacity:0;} to{opacity:1;} }
+    @keyframes mob-pulse{ 0%,100%{opacity:1;} 50%{opacity:.4;} }
+    @keyframes mob-title-fly{
+      0%{ opacity:0; transform:translateY(34vh) scale(1.5); }
+      14%{ opacity:1; transform:translateY(34vh) scale(1.5); }
+      52%{ opacity:1; transform:translateY(34vh) scale(1.5); }
+      100%{ opacity:1; transform:translateY(0) scale(1); }
+    }
     @media (prefers-reduced-motion: reduce){
       .mr-root,.mr-fill,.mr-btn,.mr-theme{ transition:none; }
-      .mr-step,.mr-lead,.mr-sub,.mr-mantra,.mob-wrap{ animation:none; }
+      .mr-step,.mr-lead,.mr-sub,.mr-intro-line,.mr-mantra,.mob-head,.mob-body,.mr-link{ animation:none; }
+      .mob-stop,.scene .sun,.scene .moon,.scene .cloud,.scene .star{ animation:none; }
     }
     `;
 
-    // Soft two-note chime + haptic when a hold completes.
+    // Soft two-note chime + haptic.
     function useChime() {
-      const ctxRef = React.useRef(null);
+      const ctxRef = useRef(null);
       return useCallback(() => {
         try {
           const AC = window.AudioContext || window.webkitAudioContext;
@@ -277,20 +341,41 @@
             if (ctx.state === "suspended") ctx.resume();
             const t = ctx.currentTime;
             const o = ctx.createOscillator();
-            const g = ctx.createGain();
+            const gg = ctx.createGain();
             o.type = "sine";
             o.frequency.setValueAtTime(880, t);
             o.frequency.setValueAtTime(1174.66, t + 0.13);
-            g.gain.setValueAtTime(0.0001, t);
-            g.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-            o.connect(g);
-            g.connect(ctx.destination);
-            o.start(t);
-            o.stop(t + 0.55);
+            gg.gain.setValueAtTime(0.0001, t);
+            gg.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+            gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+            o.connect(gg); gg.connect(ctx.destination);
+            o.start(t); o.stop(t + 0.5);
           }
-        } catch (e) { /* audio is best-effort */ }
+        } catch (e) {}
         try { if (navigator.vibrate) navigator.vibrate(110); } catch (e) {}
+      }, []);
+    }
+
+    // Keep the screen awake while the app is open (iOS 16.4+, Android, desktop).
+    function useWakeLock() {
+      useEffect(() => {
+        let lock = null;
+        const request = async () => {
+          try {
+            if (!("wakeLock" in navigator)) return;
+            if (lock && !lock.released) return;
+            lock = await navigator.wakeLock.request("screen");
+          } catch (e) {}
+        };
+        request();
+        const onVis = () => { if (document.visibilityState === "visible") request(); };
+        document.addEventListener("visibilitychange", onVis);
+        window.addEventListener("pointerdown", request);
+        return () => {
+          document.removeEventListener("visibilitychange", onVis);
+          window.removeEventListener("pointerdown", request);
+          try { if (lock && !lock.released) lock.release(); } catch (e) {}
+        };
       }, []);
     }
 
@@ -299,114 +384,163 @@
       const [active, setActive] = useState(null); // { key, dur }
       const [running, setRunning] = useState(false);
       const [remaining, setRemaining] = useState(0);
+      const [alarming, setAlarming] = useState(null); // stretch key
       const chime = useChime();
 
+      // countdown
       useEffect(() => {
         if (!running || !active) return;
         const id = setInterval(() => setRemaining((r) => Math.max(0, r - 1)), 1000);
         return () => clearInterval(id);
       }, [running, active]);
 
+      // completion → start ringing (does not auto-check; you pick the side)
       useEffect(() => {
         if (running && active && remaining === 0) {
-          const finished = active.key;
-          setDone((d) => { const n = new Set(d); n.add(finished); return n; });
+          setAlarming(active.key);
           setRunning(false);
           setActive(null);
-          chime();
         }
-      }, [remaining, running, active, chime]);
+      }, [remaining, running, active]);
+
+      // ring until stopped (with a safety cap)
+      useEffect(() => {
+        if (!alarming) return;
+        chime();
+        let n = 0;
+        const id = setInterval(() => {
+          n += 1;
+          if (n > 40) { clearInterval(id); setAlarming(null); return; } // ~60s cap
+          chime();
+        }, 1500);
+        return () => clearInterval(id);
+      }, [alarming, chime]);
 
       const onDur = useCallback((key, dur) => {
+        setAlarming((a) => (a === key ? null : a));
         setActive((cur) => {
-          if (cur && cur.key === key && cur.dur === dur) { setRunning((r) => !r); return cur; } // pause/resume
-          setRemaining(dur); setRunning(true); return { key, dur };                              // fresh hold
+          if (cur && cur.key === key && cur.dur === dur) { setRunning((r) => !r); return cur; }
+          setRemaining(dur); setRunning(true); return { key, dur };
         });
       }, []);
-
       const onReset = useCallback((key) => {
-        setActive((cur) => {
-          if (cur && cur.key === key) { setRunning(false); setRemaining(0); return null; }
-          return cur;
-        });
+        setAlarming((a) => (a === key ? null : a));
+        setActive((cur) => { if (cur && cur.key === key) { setRunning(false); setRemaining(0); return null; } return cur; });
       }, []);
-
-      const toggleDone = useCallback((key) => {
-        setDone((d) => { const n = new Set(d); n.has(key) ? n.delete(key) : n.add(key); return n; });
+      const onStop = useCallback((key) => { setAlarming((a) => (a === key ? null : a)); }, []);
+      const toggleDone = useCallback((k) => {
+        setDone((d) => { const n = new Set(d); n.has(k) ? n.delete(k) : n.add(k); return n; });
       }, []);
-
       const resetAll = useCallback(() => {
-        setDone(new Set()); setActive(null); setRunning(false); setRemaining(0);
+        setDone(new Set()); setActive(null); setRunning(false); setRemaining(0); setAlarming(null);
       }, []);
+
+      const renderCheck = (ck, label) => {
+        const on = done.has(ck);
+        return (
+          <button key={ck} className={"mob-check" + (label ? " sq" : "") + (on ? " on" : "")}
+            onClick={() => toggleDone(ck)} aria-label={label ? `${label} side` : "toggle done"}>
+            {on ? "✓" : (label || "")}
+          </button>
+        );
+      };
 
       return (
         <div className="mob-wrap">
           <p className="mob-head">Mobility training</p>
-          <div className="mob-controls">
-            <span className="mob-prog">
-              {done.size === MOBILITY_TOTAL ? "all done ✓" : `${done.size} / ${MOBILITY_TOTAL} done`}
-            </span>
-            <button className="mr-ghost" style={{ padding: ".2rem .5rem", fontSize: ".8rem" }} onClick={resetAll}>
-              reset all
-            </button>
-          </div>
+          <div className="mob-body">
+            <div className="mob-controls">
+              <span className="mob-prog">
+                {done.size === MOBILITY_TOTAL ? "all done ✓" : `${done.size} / ${MOBILITY_TOTAL} done`}
+              </span>
+              <button className="mr-ghost" style={{ padding: ".2rem .5rem", fontSize: ".8rem" }} onClick={resetAll}>reset all</button>
+            </div>
 
-          <div className="mob-scroll">
-            {MOBILITY.map((sec) => (
-              <div key={sec.section}>
-                <div className="mob-section">{sec.section}</div>
-                {sec.items.map((item) => {
-                  const key = sec.section + "::" + item;
-                  const isDone = done.has(key);
-                  const isActive = active && active.key === key;
-                  return (
-                    <div className="mob-row" key={key}>
-                      <button
-                        className={"mob-check" + (isDone ? " on" : "")}
-                        onClick={() => toggleDone(key)}
-                        aria-label={isDone ? "Mark not done" : "Mark done"}
-                      >
-                        {isDone ? "✓" : ""}
-                      </button>
-                      <button className={"mob-label" + (isDone ? " on" : "")} onClick={() => toggleDone(key)}>
-                        {item}
-                      </button>
-                      {sec.timed && (
-                        <div className="mob-durs">
-                          {HOLDS.map((dur) => {
-                            const onThis = isActive && active.dur === dur;
-                            return (
-                              <button
-                                key={dur}
-                                className={"mob-chip" + (onThis && running ? " run" : "")}
-                                onClick={() => onDur(key, dur)}
-                                aria-label={`${dur} second hold`}
-                              >
-                                {onThis ? `${fmt(remaining)} ${running ? "⏸" : "▶"}` : `▶ ${dur}s`}
-                              </button>
-                            );
-                          })}
-                          {isActive && (
-                            <button className="mob-reset" onClick={() => onReset(key)} aria-label="Reset timer">↺</button>
-                          )}
+            <div className="mob-scroll">
+              {MOBILITY.map((sec) => (
+                <div key={sec.section}>
+                  <div className="mob-section">{sec.section}</div>
+                  {sec.items.map((it) => {
+                    const name = itemName(it);
+                    const sides = itemSides(it);
+                    const key = sec.section + "::" + name;
+                    const isActive = active && active.key === key;
+                    const isAlarming = alarming === key;
+                    return (
+                      <div className="mob-item" key={key}>
+                        <div className="mob-line">
+                          {sides ? (
+                            <div className="mob-sides">
+                              {renderCheck(key + "::L", "L")}
+                              {renderCheck(key + "::R", "R")}
+                            </div>
+                          ) : renderCheck(key + "::x", "")}
+                          <button className={"mob-label" + (
+                            sides
+                              ? (done.has(key + "::L") && done.has(key + "::R") ? " on" : "")
+                              : (done.has(key + "::x") ? " on" : "")
+                          )} onClick={() => toggleDone((sides ? key + "::L" : key + "::x"))}>
+                            {name}
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                        {sec.timed && (
+                          <div className="mob-timer">
+                            {HOLDS.map((dur) => {
+                              const onThis = isActive && active.dur === dur;
+                              return (
+                                <button key={dur} className={"mob-chip" + (onThis && running ? " run" : "")}
+                                  onClick={() => onDur(key, dur)} aria-label={`${dur} second hold`}>
+                                  {onThis ? `${fmt(remaining)} ${running ? "⏸" : "▶"}` : `▶ ${dur}s`}
+                                </button>
+                              );
+                            })}
+                            {isActive && <button className="mob-reset" onClick={() => onReset(key)} aria-label="Reset timer">↺</button>}
+                            {isAlarming && <button className="mob-stop" onClick={() => onStop(key)}>⏹ Stop</button>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       );
     }
 
+    // Calm ambient outdoors scene for the final screen (theme-aware).
+    function Scene({ theme }) {
+      if (theme === "dark") {
+        const stars = [
+          { t: "12%", l: "18%", d: "0s" }, { t: "20%", l: "70%", d: "1.1s" },
+          { t: "28%", l: "40%", d: "2s" }, { t: "16%", l: "85%", d: ".6s" },
+          { t: "34%", l: "12%", d: "1.6s" }, { t: "10%", l: "55%", d: "2.4s" },
+          { t: "40%", l: "78%", d: ".9s" }, { t: "24%", l: "30%", d: "1.9s" },
+        ];
+        return (
+          <div className="scene" aria-hidden="true">
+            <div className="moon" />
+            {stars.map((s, i) => <div className="star" key={i} style={{ top: s.t, left: s.l, animationDelay: s.d }} />)}
+            <div className="hill h1" /><div className="hill h2" />
+          </div>
+        );
+      }
+      return (
+        <div className="scene" aria-hidden="true">
+          <div className="sun" />
+          <div className="cloud c1" /><div className="cloud c2" /><div className="cloud c3" />
+          <div className="hill h1" /><div className="hill h2" />
+        </div>
+      );
+    }
+
     function Routine() {
-      const [mode, setMode] = useState("morning"); // "morning" (light) | "night" (dark)
-      const [pos, setPos] = useState(0);           // 0 = intro, 1..N = steps, N+1 = done
+      useWakeLock();
+      const [mode, setMode] = useState("morning");
+      const [pos, setPos] = useState(0);
       const [loaded, setLoaded] = useState(false);
 
-      // resolve initial mode: saved → else system dark preference
       useEffect(() => {
         try {
           const saved = localStorage.getItem(MODE_KEY);
@@ -415,7 +549,6 @@
         } catch (e) {}
       }, []);
 
-      // load the active mode's saved progress for today whenever the mode changes
       useEffect(() => {
         const cap = STEPS_BY_MODE[mode].length + 1;
         let p = 0;
@@ -434,9 +567,7 @@
         const cap = STEPS_BY_MODE[mode].length + 1;
         const clamped = Math.max(0, Math.min(cap, next));
         setPos(clamped);
-        try {
-          localStorage.setItem(progKey(mode), JSON.stringify({ date: todayStr(), pos: clamped }));
-        } catch (e) {}
+        try { localStorage.setItem(progKey(mode), JSON.stringify({ date: todayStr(), pos: clamped })); } catch (e) {}
       }, [mode]);
 
       const toggleMode = useCallback(() => {
@@ -461,11 +592,7 @@
       };
 
       if (!loaded) {
-        return (
-          <div className="mr-root" data-theme={theme} style={rootStyle}>
-            <style>{CSS}</style>
-          </div>
-        );
+        return <div className="mr-root" data-theme={theme} style={rootStyle}><style>{CSS}</style></div>;
       }
 
       const isIntro = pos === 0;
@@ -486,26 +613,36 @@
               {isStep && (
                 <>
                   <div className="mr-eyebrow">{MODE_META[mode].label} · step {pos} of {N}</div>
-                  <div className="mr-track">
-                    <div className="mr-fill" style={{ width: `${(pos / N) * 100}%` }} />
-                  </div>
+                  <div className="mr-track"><div className="mr-fill" style={{ width: `${(pos / N) * 100}%` }} /></div>
                 </>
               )}
             </header>
 
             <main className={"mr-main" + (isMobility ? " mob" : "")}>
               {isIntro && (
-                <button className="mr-btn mr-mantra" onClick={() => go(1)}>{MANTRA}</button>
+                <div className="mr-intro">
+                  {INTRO_LINE[mode] && <p className="mr-intro-line" key={mode}>{INTRO_LINE[mode]}</p>}
+                  <button className="mr-btn mr-mantra" key={mode + "-btn"} onClick={() => go(1)}>{MANTRA}</button>
+                </div>
               )}
-              {isStep && !isMobility && (
-                <p className="mr-step" key={mode + pos}>{steps[stepIdx]}</p>
-              )}
+              {isStep && !isMobility && (() => {
+                const link = stepLink(steps[stepIdx]);
+                return (
+                  <div className="mr-stepwrap" key={mode + pos}>
+                    <p className="mr-step">{steps[stepIdx]}</p>
+                    {link && <a className="mr-link" href={link.href}>{link.label}</a>}
+                  </div>
+                );
+              })()}
               {isMobility && <MobilityChecklist key={mode + pos} />}
               {isDone && (
-                <div>
-                  <p className="mr-lead">That's the routine.</p>
-                  <p className="mr-sub">{MODE_META[mode].doneSub}</p>
-                </div>
+                <>
+                  <Scene theme={theme} />
+                  <div className="mr-donetext">
+                    <p className="mr-lead">That's the routine.</p>
+                    <p className="mr-sub">{MODE_META[mode].doneSub}</p>
+                  </div>
+                </>
               )}
             </main>
 
@@ -517,7 +654,10 @@
                 </>
               )}
               {isDone && (
-                <button className="mr-ghost" onClick={() => go(0)}>Start over</button>
+                <div className="mr-donebtns">
+                  <button className="mr-ghost" onClick={() => go(N)}>‹ Back</button>
+                  <button className="mr-ghost" onClick={() => go(0)}>Start over</button>
+                </div>
               )}
             </footer>
           </div>
@@ -529,11 +669,8 @@
   </script>
 
   <script>
-    // Register the service worker for offline use (needs HTTPS or localhost).
     if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("sw.js").catch(() => {});
-      });
+      window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
     }
   </script>
 </body>
