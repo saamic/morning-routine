@@ -8,7 +8,7 @@ description: Reconcile the Routine PWA (morning/night routine app at gatho.co/ro
 The **Routine** app mirrors specific sections of the user's Evernote notes. When the
 user changes those notes, run this skill to reconcile the app content to match.
 
-- **Repo / folder:** `/Users/saam/Desktop/routine` (git remote `saamic/routine`)
+- **Repo / folder:** `/Users/saam/Code/routine` (git remote `saamic/routine`)
 - **Live:** https://www.gatho.co/routine/ (also https://saamic.github.io/routine/)
 - **Structure:** a single `index.html` — inline React compiled in-browser by Babel.
   All routine content lives in JS **constants** near the top of the `<script type="text/babel">` block.
@@ -70,7 +70,7 @@ user changes those notes, run this skill to reconcile the app content to match.
 3. **Edit** the constants in `index.html`.
 4. **Compile-check** (must pass before committing):
    ```bash
-   cd /Users/saam/Desktop/routine
+   cd /Users/saam/Code/routine
    node -e 'const fs=require("fs");const m=fs.readFileSync("index.html","utf8").match(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>/);fs.writeFileSync("/tmp/routine.jsx",m[1]);'
    # in a dir with @babel/standalone installed:
    node -e 'const b=require("@babel/standalone");b.transform(require("fs").readFileSync("/tmp/routine.jsx","utf8"),{presets:["react"]});console.log("ok")'
