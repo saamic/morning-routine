@@ -158,8 +158,6 @@
       light: { COOL_TOP: "#D9E2EC", COOL_BOT: "#E9E2E6", WARM_TOP: "#F4ECDC", WARM_BOT: "#F8E4D2" },
       dark:  { COOL_TOP: "#10151F", COOL_BOT: "#141019", WARM_TOP: "#1E1710", WARM_BOT: "#23160F" },
     };
-    const ACCENT = { light: "#35695E", dark: "#55988A" }; // hill / accent color
-    const ACCENT_H = { light: "#2C5A50", dark: "#1B322D" }; // front hill (matches CSS --hill3)
 
     const CSS = `
     @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..460&family=Inter:wght@400;500&display=swap');
@@ -688,7 +686,9 @@
 
       // Match the OS status-bar / safe-area color to the app edge the bar sits against:
       // the gradient's bottom normally, or the hills' green on the final scene screen.
-      const barColor = pos === N + 1 ? ACCENT_H[theme] : bottomColor;
+      // On the done screen the scene (inset:0, opaque hills) covers everything, so match the
+      // status-bar/chrome tint to the SKY at the top, not the hills — a green bar clashed with the cream sky.
+      const barColor = pos === N + 1 ? topColor : bottomColor;
       useEffect(() => {
         try {
           document.body.style.background = barColor;
