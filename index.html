@@ -159,6 +159,7 @@
       dark:  { COOL_TOP: "#10151F", COOL_BOT: "#141019", WARM_TOP: "#1E1710", WARM_BOT: "#23160F" },
     };
     const ACCENT = { light: "#35695E", dark: "#55988A" }; // hill / accent color
+    const ACCENT_H = { light: "#2C5A50", dark: "#66A99B" }; // darkest hill (matches CSS --accentH)
 
     const CSS = `
     @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..460&family=Inter:wght@400;500&display=swap');
@@ -258,13 +259,16 @@
     .mob-head{ font-family:'Fraunces',Georgia,serif; font-weight:400; font-size:clamp(1.35rem,5vw,1.8rem);
       letter-spacing:-.01em; margin:0 auto; color:var(--txt); text-align:center;
       display:inline-block; align-self:center; max-width:90%; white-space:normal; transform-origin:center center;
-      animation:mob-title-fly 720ms cubic-bezier(.5,0,.15,1) both; }
-    .mob-body{ display:flex; flex-direction:column; min-height:0; flex:1 1 auto; animation:mr-rise 640ms cubic-bezier(.22,1,.36,1) 300ms both; }
+      animation:mob-title-fly 560ms cubic-bezier(.5,0,.15,1) both; }
+    /* delayed so the content only fades in AFTER the title has risen clear of the center */
+    .mob-body{ display:flex; flex-direction:column; min-height:0; flex:1 1 auto; animation:mr-rise 620ms cubic-bezier(.22,1,.36,1) 470ms both; }
     .mob-controls{ display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin:.4rem 0 .1rem; }
     .mob-prog{ font-size:.8rem; color:var(--sub); font-variant-numeric:tabular-nums; }
-    .mob-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; margin-top:.2rem; padding-right:.3rem; padding-bottom:6.5rem;
-      -webkit-mask-image:linear-gradient(180deg,transparent,#000 .7rem,#000 calc(100% - .7rem),transparent);
-              mask-image:linear-gradient(180deg,transparent,#000 .7rem,#000 calc(100% - .7rem),transparent); }
+    /* padding-bottom clears the floating Done + Back buttons; the tall bottom mask
+       fades scrolling text to the page bg BEHIND those buttons so nothing collides. */
+    .mob-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; margin-top:.2rem; padding-right:.3rem; padding-bottom:8rem;
+      -webkit-mask-image:linear-gradient(180deg,transparent,#000 .7rem,#000 calc(100% - 6.75rem),transparent);
+              mask-image:linear-gradient(180deg,transparent,#000 .7rem,#000 calc(100% - 6.75rem),transparent); }
     .mob-section{ font-family:'Fraunces',Georgia,serif; font-size:.95rem; font-weight:500; color:var(--sub); margin:.85rem 0 .1rem; letter-spacing:.01em; }
     .mob-item{ padding:.55rem 0; border-bottom:1px solid var(--rowBorder); }
     .mob-line{ display:flex; align-items:center; gap:.7rem; }
@@ -297,8 +301,12 @@
     .done-restart{ min-width:auto; padding:.9rem 2.4rem; }
     .done-actions{ position:fixed; left:0; right:0; bottom:calc(34% + env(safe-area-inset-bottom));
       display:flex; flex-direction:column; align-items:center; gap:.9rem; z-index:3; animation:mr-fadein 800ms ease both; }
-    /* height:100vh (not inset:0) so it covers the bottom safe area / home-indicator strip */
-    .scene{ position:fixed; top:0; left:0; right:0; height:100vh; overflow:hidden; z-index:0; pointer-events:none; animation:scene-in 900ms ease both; }
+    /* inset:0 fills the whole fixed viewport INCLUDING the safe areas (viewport-fit=cover),
+       so the home-indicator strip shows scene, not the body's flat color. */
+    .scene{ position:fixed; inset:0; overflow:hidden; z-index:0; pointer-events:none; animation:scene-in 900ms ease both; }
+    /* full-bleed ground that overshoots past the bottom safe area, so even a sub-pixel
+       gap under the rounded hills is painted by the scene's own dark-green, never the body. */
+    .scene .ground{ position:absolute; left:0; right:0; bottom:0; height:calc(6% + env(safe-area-inset-bottom)); background:var(--accentH); }
     .scene .sun-glow{ position:absolute; top:13%; left:50%; width:12rem; height:12rem; margin-left:-6rem; border-radius:50%;
       background:radial-gradient(circle, rgba(243,178,95,.4), transparent 68%); animation:glow-pulse 6s ease-in-out infinite; }
     .scene .sun{ position:absolute; top:16%; left:50%; width:5.4rem; height:5.4rem; margin-left:-2.7rem; border-radius:50%;
@@ -334,9 +342,9 @@
     @keyframes mob-fade{ from{opacity:0;} to{opacity:1;} }
     @keyframes mob-pulse{ 0%,100%{opacity:1;} 50%{opacity:.4;} }
     @keyframes mob-title-fly{
-      0%{ opacity:0; transform:translateY(28vh) scale(1.12); }
-      20%{ opacity:1; transform:translateY(28vh) scale(1.12); }
-      55%{ opacity:1; transform:translateY(28vh) scale(1.12); }
+      0%{ opacity:0; transform:translateY(26vh) scale(1.1); }
+      18%{ opacity:1; transform:translateY(26vh) scale(1.1); }
+      36%{ opacity:1; transform:translateY(26vh) scale(1.1); }
       100%{ opacity:1; transform:translateY(0) scale(1); }
     }
     @keyframes sun-bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-9px);} }
@@ -613,6 +621,7 @@
             <div className="moon-glow" /><div className="moon" />
             {stars.map((s, i) => <div className="star" key={i} style={{ top: s.t, left: s.l, animationDelay: s.d }} />)}
             <div className="shoot" />
+            <div className="ground" />
             <div className="hill h0" /><div className="hill h1" /><div className="hill h2" />
           </div>
         );
@@ -622,6 +631,7 @@
           <div className="sun-glow" /><div className="sun" />
           <div className="cloud c1" /><div className="cloud c2" /><div className="cloud c3" /><div className="cloud c4" />
           <div className="bird b1" /><div className="bird b2" />
+          <div className="ground" />
           <div className="hill h0" /><div className="hill h1" /><div className="hill h2" />
         </div>
       );
@@ -680,7 +690,7 @@
 
       // Match the OS status-bar / safe-area color to the app edge the bar sits against:
       // the gradient's bottom normally, or the hills' green on the final scene screen.
-      const barColor = pos === N + 1 ? ACCENT[theme] : bottomColor;
+      const barColor = pos === N + 1 ? ACCENT_H[theme] : bottomColor;
       useEffect(() => {
         try {
           document.body.style.background = barColor;
