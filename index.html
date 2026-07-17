@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#E9E2E6" />
+  <title>Morning Routine</title>
+  <style>
+    html, body { margin: 0; padding: 0; }
+    #root { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script
+    src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"
+    integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"
+    crossorigin="anonymous"></script>
+  <script
+    src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"
+    integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"
+    crossorigin="anonymous"></script>
+  <script
+    src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"
+    integrity="sha384-x/ilTFv/u/eu6YSmkFDZl5V5Mm/pkxxcVv2cVJOrr1J0rvILhMvRBCy6yA75wYBj"
+    crossorigin="anonymous"></script>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useCallback } = React;
+
+    // ── Your "After waking" routine, one sentence per step ──────────────
+    // (isometric pull-up hold inserted right after neck training)
+    const STEPS = [
+      "Open the blinds and let the natural light in.",
+      "Meditate for five minutes.",
+      "Briefly tidy your room.",
+      "Walk and roll out your joints — about five minutes.",
+      "Move through your mobility training — about twenty minutes.",
+      "Do your neck training.",
+      "Hold an isometric pull-up for your left biceps — underhand grip, ~30–45 seconds, a few rounds.",
+      "Do your aesthetic check.",
+      "Brush your teeth.",
+      "Skincare — rinse, then sunscreen, then vitamin C.",
+      "Review your self-organization.",
+      "Review your priorities.",
+      "Review your to-do list.",
+      "Stock the fridge — salmon, fruit, nuts, nut butter, carrots, watermelon, Greek yogurt, greens.",
+    ];
+
+    const N = STEPS.length;
+    const STORAGE_KEY = "morning-routine-progress";
+
+    function todayStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate()
+      ).padStart(2, "0")}`;
+    }
+
+    // linear interpolate between two hex colors → rgb() string
+    function lerpHex(a, b, t) {
+      const p = (h, i) => parseInt(h.replace("#", "").slice(i, i + 2), 16);
+      const mix = (i) => Math.round(p(a, i) + (p(b, i) - p(a, i)) * t);
+      return `rgb(${mix(0)}, ${mix(2)}, ${mix(4)})`;
+    }
+
+    // dawn (cool, pre-light) → morning (warm daylight)
+    const COOL_TOP = "#D9E2EC", COOL_BOT = "#E9E2E6";
+    const WARM_TOP = "#F4ECDC", WARM_BOT = "#F8E4D2";
+
+    const CSS = `
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..460&family=Inter:wght@400;500&display=swap');
+
+    .mr-root{
+      min-height:100vh; width:100%;
+      display:flex; justify-content:center;
+      color:#26333F;
+      font-family:'Inter',system-ui,-apple-system,sans-serif;
+      transition:background 1200ms ease;
+      -webkit-font-smoothing:antialiased;
+    }
+    .mr-frame{
+      width:100%; max-width:33rem; min-height:100vh;
+      display:flex; flex-direction:column;
+      padding:2rem 1.6rem 2.2rem;
+      box-sizing:border-box;
+    }
+    .mr-top{ min-height:3.2rem; }
+    .mr-eyebrow{
+      font-size:.78rem; letter-spacing:.13em; text-transform:uppercase;
+      color:#6B7885; margin-bottom:.85rem;
+    }
+    .mr-track{
+      height:2px; width:100%; border-radius:2px;
+      background:rgba(38,51,63,.13); overflow:hidden;
+    }
+    .mr-fill{
+      height:100%; background:#35695E; border-radius:2px;
+      transition:width 600ms cubic-bezier(.22,1,.36,1);
+    }
+    .mr-main{
+      flex:1; display:flex; flex-direction:column;
+      justify-content:center; align-items:center; text-align:center;
+      padding:1.5rem 0;
+    }
+    .mr-step{
+      font-family:'Fraunces',Georgia,serif;
+      font-weight:390; font-size:clamp(1.7rem,6.2vw,2.55rem);
+      line-height:1.28; letter-spacing:-.01em; margin:0; max-width:22ch;
+      animation:mr-rise 620ms cubic-bezier(.22,1,.36,1) both;
+    }
+    .mr-lead{
+      font-family:'Fraunces',Georgia,serif;
+      font-weight:400; font-size:clamp(1.9rem,7vw,2.7rem);
+      line-height:1.15; margin:0 0 .7rem; letter-spacing:-.015em;
+      animation:mr-rise 620ms cubic-bezier(.22,1,.36,1) both;
+    }
+    .mr-sub{
+      font-size:1.02rem; line-height:1.5; color:#6B7885;
+      margin:0; max-width:28ch;
+      animation:mr-rise 700ms cubic-bezier(.22,1,.36,1) both;
+    }
+    .mr-bottom{
+      display:flex; flex-direction:column; align-items:center; gap:.9rem;
+    }
+    .mr-btn{
+      appearance:none; border:none; cursor:pointer;
+      background:#35695E; color:#FBFAF7;
+      font-family:inherit; font-weight:500; font-size:1.05rem;
+      padding:.95rem 3.4rem; border-radius:999px; min-width:12rem;
+      box-shadow:0 6px 18px rgba(38,51,63,.14);
+      transition:background 180ms ease, transform 120ms ease, box-shadow 180ms ease;
+    }
+    .mr-btn:hover{ background:#2C5A50; box-shadow:0 8px 22px rgba(38,51,63,.18); }
+    .mr-btn:active{ transform:translateY(1px); box-shadow:0 4px 12px rgba(38,51,63,.14); }
+    .mr-ghost{
+      appearance:none; border:none; background:none; cursor:pointer;
+      font-family:inherit; font-size:.92rem; color:#8A96A1;
+      padding:.35rem .7rem; border-radius:8px;
+      transition:color 160ms ease;
+    }
+    .mr-ghost:hover{ color:#26333F; }
+    .mr-whisper{
+      margin-top:.4rem; font-size:.74rem; letter-spacing:.09em;
+      color:#A2ADB6;
+    }
+    .mr-btn:focus-visible, .mr-ghost:focus-visible{
+      outline:2px solid #35695E; outline-offset:3px;
+    }
+    @keyframes mr-rise{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;} }
+    @media (prefers-reduced-motion: reduce){
+      .mr-root,.mr-fill,.mr-btn{ transition:none; }
+      .mr-step,.mr-lead,.mr-sub{ animation:none; }
+    }
+    `;
+
+    function MorningRoutine() {
+      const [pos, setPos] = useState(0); // 0 = intro, 1..N = steps, N+1 = done
+      const [loaded, setLoaded] = useState(false);
+
+      useEffect(() => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const s = JSON.parse(raw);
+            if (s.date === todayStr() && typeof s.pos === "number") {
+              setPos(Math.max(0, Math.min(N + 1, s.pos)));
+            }
+          }
+        } catch (e) {
+          /* no saved state yet → fresh morning */
+        } finally {
+          setLoaded(true);
+        }
+      }, []);
+
+      const go = useCallback((next) => {
+        const clamped = Math.max(0, Math.min(N + 1, next));
+        setPos(clamped);
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ date: todayStr(), pos: clamped })
+          );
+        } catch (e) {
+          /* persistence is best-effort */
+        }
+      }, []);
+
+      const frac = Math.min(1, Math.max(0, pos / (N + 1)));
+      const rootStyle = {
+        background: `linear-gradient(180deg, ${lerpHex(COOL_TOP, WARM_TOP, frac)} 0%, ${lerpHex(
+          COOL_BOT,
+          WARM_BOT,
+          frac
+        )} 100%)`,
+      };
+
+      if (!loaded) {
+        return (
+          <div className="mr-root" style={rootStyle}>
+            <style>{CSS}</style>
+          </div>
+        );
+      }
+
+      const isIntro = pos === 0;
+      const isDone = pos === N + 1;
+      const isStep = !isIntro && !isDone;
+
+      return (
+        <div className="mr-root" style={rootStyle}>
+          <style>{CSS}</style>
+          <div className="mr-frame">
+            <header className="mr-top">
+              {isStep && (
+                <>
+                  <div className="mr-eyebrow">
+                    Morning · step {pos} of {N}
+                  </div>
+                  <div className="mr-track">
+                    <div className="mr-fill" style={{ width: `${(pos / N) * 100}%` }} />
+                  </div>
+                </>
+              )}
+            </header>
+
+            <main className="mr-main">
+              {isIntro && (
+                <div>
+                  <p className="mr-lead">Slow down.</p>
+                  <p className="mr-sub">One thing at a time. No scrolling yet — just begin.</p>
+                </div>
+              )}
+              {isStep && (
+                <p className="mr-step" key={pos}>
+                  {STEPS[pos - 1]}
+                </p>
+              )}
+              {isDone && (
+                <div>
+                  <p className="mr-lead">That's the routine.</p>
+                  <p className="mr-sub">
+                    You're ready for the day — check off your morning routine in Todoist.
+                  </p>
+                </div>
+              )}
+            </main>
+
+            <footer className="mr-bottom">
+              {isIntro && (
+                <button className="mr-btn" onClick={() => go(1)}>
+                  Begin
+                </button>
+              )}
+              {isStep && (
+                <>
+                  <button className="mr-btn" onClick={() => go(pos + 1)}>
+                    Done
+                  </button>
+                  <button className="mr-ghost" onClick={() => go(pos - 1)}>
+                    ‹ Back
+                  </button>
+                </>
+              )}
+              {isDone && (
+                <button className="mr-ghost" onClick={() => go(0)}>
+                  Start over
+                </button>
+              )}
+              <div className="mr-whisper">one thing at a time</div>
+            </footer>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<MorningRoutine />);
+  </script>
+</body>
+</html>
